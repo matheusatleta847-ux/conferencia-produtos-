@@ -23,7 +23,7 @@
     .filtros select { border: 1px solid #e5e5e5; border-radius: 8px; padding: 9px 14px; font-size: 13px; background: #fff; cursor: pointer; outline: none; }
     table { width: 100%; max-width: 780px; border-collapse: collapse; font-size: 13px; }
     th { background: #f5f5f5; text-align: left; padding: 10px 14px; border-bottom: 1px solid #e5e5e5; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
-    td { padding: 11px 14px; border-bottom: 1px solid #f0f0f0; }
+    td { padding: 11px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
     tr:hover td { background: #fafafa; }
     .badge { font-size: 11px; padding: 3px 10px; border-radius: 99px; font-weight: 500; }
     .badge-aguardando { background: #FEF3C7; color: #92400E; }
@@ -41,6 +41,12 @@
     .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
     .btn-cancel { background: #f5f5f5; border: none; border-radius: 7px; padding: 9px 18px; font-size: 13px; cursor: pointer; }
     .btn-confirm { background: #ef4444; color: #fff; border: none; border-radius: 7px; padding: 9px 18px; font-size: 13px; cursor: pointer; font-weight: 600; }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 20px; overflow-x: auto; }
+      table { min-width: 600px; }
+    }
   </style>
 </head>
 <body>
@@ -99,6 +105,7 @@
               <th>Pedido</th>
               <th>Cliente</th>
               <th>Produtos</th>
+              <th>Unidades</th>
               <th>Gerado em</th>
               <th>Status</th>
               <th style="text-align:center">Download</th>
@@ -106,11 +113,12 @@
             </tr>
           </thead>
           <tbody>
-            ${dados.map(a => `
+            ${dados.map((a, idx) => `
               <tr>
                 <td style="font-weight:600">${a.pedido}</td>
-                <td style="color:#555;font-size:12px;">${a.cliente || '-'}</td>
-                <td style="color:#888">${a.totalProdutos || 0} prod · ${a.totalUnidades || 0} un</td>
+                <td style="color:#555;font-size:12px;">${a.cliente || '—'}</td>
+                <td style="color:#555;text-align:center">${a.totalProdutos || 0}</td>
+                <td style="color:#555;text-align:center">${a.totalUnidades || 0}</td>
                 <td style="color:#888">${a.data}</td>
                 <td>${badgeHtml(a.status)}</td>
                 <td style="text-align:center">
@@ -119,7 +127,7 @@
                   </a>
                 </td>
                 <td>
-                  <button class="btn-del" onclick="abrirModal('${a.pedido}', '${a.cliente}')">
+                  <button class="btn-del" data-idx="${idx}">
                     <i class="ti ti-trash"></i>
                   </button>
                 </td>
@@ -127,6 +135,15 @@
             `).join('')}
           </tbody>
         </table>`;
+
+      // FIX: event delegation — evita bug de apóstrofo/caracteres no nome do cliente
+      el.querySelectorAll('.btn-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx);
+          const item = dados[idx];
+          abrirModal(item.pedido, item.cliente);
+        });
+      });
     }
 
     function filtrar() {
@@ -139,9 +156,10 @@
       renderTabela(filtrado);
     }
 
+    // FIX: cache bust com timestamp
     async function carregar() {
       try {
-        const res = await fetch('/api/historico');
+        const res = await fetch('/api/historico?_=' + Date.now());
         todos = await res.json();
         renderTabela(todos);
       } catch(e) {
@@ -151,8 +169,9 @@
 
     function abrirModal(pedido, cliente) {
       pedidoParaExcluir = pedido;
+      // FIX: textContent evita quebra por caracteres especiais
       document.getElementById('modalTxt').textContent =
-        `Tem certeza que deseja excluir o pedido ${pedido} (${cliente})? Esta acao nao pode ser desfeita.`;
+        `Tem certeza que deseja excluir o pedido ${pedido} (${cliente || ''})? Esta acao nao pode ser desfeita.`;
       document.getElementById('modalOverlay').classList.add('show');
     }
 
@@ -163,11 +182,24 @@
 
     async function confirmarExclusao() {
       if (!pedidoParaExcluir) return;
-      await fetch(`/api/historico?pedido=${pedidoParaExcluir}`, { method: 'DELETE' });
-      todos = todos.filter(a => a.pedido !== pedidoParaExcluir);
-      fecharModal();
-      filtrar();
+      const btn = document.querySelector('.btn-confirm');
+      btn.disabled = true;
+      btn.textContent = 'Excluindo...';
+      try {
+        await fetch(`/api/historico?pedido=${encodeURIComponent(pedidoParaExcluir)}`, { method: 'DELETE' });
+        todos = todos.filter(a => a.pedido !== pedidoParaExcluir);
+        fecharModal();
+        filtrar();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sim, excluir';
+      }
     }
+
+    // FIX: recarrega ao voltar de outra aba
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') carregar();
+    });
 
     carregar();
   </script>
