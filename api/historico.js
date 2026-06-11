@@ -44,6 +44,8 @@ module.exports = async function handler(req, res) {
       .filter(Boolean)
       .sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm));
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     return res.status(200).json(resultado);
   } catch (err) {
     return res.status(500).json({ error: err.message });
