@@ -21,13 +21,17 @@
     .busca { display: flex; gap: 10px; margin-bottom: 20px; max-width: 680px; }
     .busca input { flex: 1; border: 1px solid #e5e5e5; border-radius: 8px; padding: 9px 14px; font-size: 13px; outline: none; }
     .busca input:focus { border-color: #111; }
-    .card { display: flex; align-items: center; justify-content: space-between; border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px 20px; margin-bottom: 10px; max-width: 680px; }
-    .card-left { display: flex; align-items: center; gap: 14px; }
-    .card-left i { font-size: 26px; color: #bbb; }
-    .card-info p { font-weight: 600; font-size: 14px; }
-    .card-info .cliente { font-size: 12px; color: #555; margin-top: 2px; }
-    .card-info .meta { font-size: 11px; color: #aaa; margin-top: 2px; }
-    .card-right { display: flex; align-items: center; gap: 10px; }
+
+    /* Card redesenhado */
+    .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px 20px; margin-bottom: 10px; max-width: 680px; }
+    .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .card-left { display: flex; align-items: flex-start; gap: 14px; }
+    .card-left i { font-size: 24px; color: #bbb; margin-top: 2px; flex-shrink: 0; }
+    .card-info .pedido-num { font-weight: 700; font-size: 14px; }
+    .card-info .cliente { font-size: 13px; color: #444; margin-top: 3px; }
+    .card-info .meta { font-size: 11px; color: #999; margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .meta-sep { color: #ddd; }
+    .card-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .badge { font-size: 11px; padding: 3px 10px; border-radius: 99px; font-weight: 500; white-space: nowrap; }
     .badge-aguardando { background: #FEF3C7; color: #92400E; }
     .badge-parcial { background: #FFF7ED; color: #C2410C; }
@@ -47,6 +51,12 @@
     .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
     .btn-cancel { background: #f5f5f5; border: none; border-radius: 7px; padding: 9px 18px; font-size: 13px; cursor: pointer; }
     .btn-confirm { background: #ef4444; color: #fff; border: none; border-radius: 7px; padding: 9px 18px; font-size: 13px; cursor: pointer; font-weight: 600; }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 20px; }
+      .card-right { flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>
@@ -99,28 +109,45 @@
         lista.innerHTML = '<div class="empty">Nenhum pedido encontrado. <a href="/" style="color:#111;">Importe um PDF.</a></div>';
         return;
       }
-      lista.innerHTML = dados.map(a => `
-        <div class="card" id="card-${a.pedido}">
-          <div class="card-left">
-            <i class="ti ti-file-spreadsheet"></i>
-            <div class="card-info">
-              <p>Pedido ${a.pedido}</p>
-              <div class="cliente">${a.cliente || ''}</div>
-              <div class="meta">${a.totalProdutos || 0} produtos · ${a.totalUnidades || 0} unidades · ${a.data}</div>
+      lista.innerHTML = dados.map((a, idx) => `
+        <div class="card" id="card-${idx}">
+          <div class="card-top">
+            <div class="card-left">
+              <i class="ti ti-file-spreadsheet"></i>
+              <div class="card-info">
+                <div class="pedido-num">Pedido ${a.pedido}</div>
+                <div class="cliente">${a.cliente || '—'}</div>
+                <div class="meta">
+                  <span><strong>${a.totalProdutos || 0}</strong> produtos</span>
+                  <span class="meta-sep">·</span>
+                  <span><strong>${a.totalUnidades || 0}</strong> unidades</span>
+                  <span class="meta-sep">·</span>
+                  <span>${a.data}</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="card-right">
-            ${badgeHtml(a.status)}
-            <select class="select-status" onchange="atualizarStatus('${a.pedido}', this.value)">
-              <option ${a.status==='Aguardando'?'selected':''}>Aguardando</option>
-              <option ${a.status==='Parcial'?'selected':''}>Parcial</option>
-              <option ${a.status==='Completo'?'selected':''}>Completo</option>
-            </select>
-            <a href="${a.url}" download="${a.nome}" class="btn-dl"><i class="ti ti-download"></i> xlsx</a>
-            <button class="btn-del" onclick="abrirModal('${a.pedido}', '${a.cliente}')"><i class="ti ti-trash"></i></button>
+            <div class="card-right">
+              ${badgeHtml(a.status)}
+              <select class="select-status" data-pedido="${a.pedido}" onchange="atualizarStatus(this)">
+                <option ${(a.status||'Aguardando')==='Aguardando'?'selected':''}>Aguardando</option>
+                <option ${a.status==='Parcial'?'selected':''}>Parcial</option>
+                <option ${a.status==='Completo'?'selected':''}>Completo</option>
+              </select>
+              <a href="${a.url}" download="${a.nome}" class="btn-dl"><i class="ti ti-download"></i> xlsx</a>
+              <button class="btn-del" data-idx="${idx}"><i class="ti ti-trash"></i></button>
+            </div>
           </div>
         </div>
       `).join('');
+
+      // FIX: event delegation para botões excluir — evita bug com apóstrofos no nome do cliente
+      lista.querySelectorAll('.btn-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx);
+          const item = dados[idx];
+          abrirModal(item.pedido, item.cliente);
+        });
+      });
     }
 
     function filtrar() {
@@ -132,9 +159,10 @@
       renderLista(filtrado);
     }
 
+    // FIX: cache bust com timestamp para forçar reload após impressão/retorno
     async function carregar() {
       try {
-        const res = await fetch('/api/historico');
+        const res = await fetch('/api/historico?_=' + Date.now());
         todos = await res.json();
         renderLista(todos);
       } catch(e) {
@@ -142,7 +170,9 @@
       }
     }
 
-    async function atualizarStatus(pedido, status) {
+    async function atualizarStatus(select) {
+      const pedido = select.dataset.pedido;
+      const status = select.value;
       await fetch('/api/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,8 +185,9 @@
 
     function abrirModal(pedido, cliente) {
       pedidoParaExcluir = pedido;
+      // FIX: usa textContent para evitar quebra por apóstrofos/caracteres especiais
       document.getElementById('modalTxt').textContent =
-        `Tem certeza que deseja excluir o pedido ${pedido} (${cliente})? Esta acao nao pode ser desfeita.`;
+        `Tem certeza que deseja excluir o pedido ${pedido} (${cliente || ''})? Esta acao nao pode ser desfeita.`;
       document.getElementById('modalOverlay').classList.add('show');
     }
 
@@ -167,13 +198,27 @@
 
     async function confirmarExclusao() {
       if (!pedidoParaExcluir) return;
-      await fetch(`/api/historico?pedido=${pedidoParaExcluir}`, { method: 'DELETE' });
-      todos = todos.filter(a => a.pedido !== pedidoParaExcluir);
-      fecharModal();
-      filtrar();
+      const btn = document.querySelector('.btn-confirm');
+      btn.disabled = true;
+      btn.textContent = 'Excluindo...';
+      try {
+        await fetch(`/api/historico?pedido=${encodeURIComponent(pedidoParaExcluir)}`, { method: 'DELETE' });
+        todos = todos.filter(a => a.pedido !== pedidoParaExcluir);
+        fecharModal();
+        filtrar();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sim, excluir';
+      }
     }
+
+    // FIX: recarrega lista ao voltar de outra aba (ex: após imprimir)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') carregar();
+    });
 
     carregar();
   </script>
 </body>
 </html>
+
